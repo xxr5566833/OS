@@ -109,10 +109,10 @@ struct segdesc {
     unsigned sd_g : 1;                // granularity: limit scaled by 4K when set
     unsigned sd_base_31_24 : 8;        // high bits of segment base address
 };
-
+// null segment descriptors
 #define SEG_NULL                                            \
     (struct segdesc){0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-
+// create a new segment desc by type base lim dpl
 #define SEG(type, base, lim, dpl)                        \
     (struct segdesc){                                    \
         ((lim) >> 12) & 0xffff, (base) & 0xffff,        \
@@ -120,7 +120,7 @@ struct segdesc {
         (unsigned)(lim) >> 28, 0, 0, 1, 1,                \
         (unsigned) (base) >> 24                            \
     }
-
+// lim only 16??
 #define SEG16(type, base, lim, dpl)                        \
     (struct segdesc){                                    \
         (lim) & 0xffff, (base) & 0xffff,                \

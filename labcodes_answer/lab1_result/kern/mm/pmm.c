@@ -47,7 +47,7 @@ static struct segdesc gdt[] = {
     [SEG_UDATA] = SEG(STA_W, 0x0, 0xFFFFFFFF, DPL_USER),
     [SEG_TSS]    = SEG_NULL,
 };
-
+// why -1?
 static struct pseudodesc gdt_pd = {
     sizeof(gdt) - 1, (uint32_t)gdt
 };
@@ -56,6 +56,7 @@ static struct pseudodesc gdt_pd = {
  * lgdt - load the global descriptor table register and reset the
  * data/code segement registers for kernel.
  * */
+// reload cs's asm code cannot get
 static inline void
 lgdt(struct pseudodesc *pd) {
     asm volatile ("lgdt (%0)" :: "r" (pd));
@@ -78,8 +79,9 @@ gdt_init(void) {
     // user to the kernel. But not safe here, it's only a temporary value,
     // it will be set to KSTACKTOP in lab2.
     ts.ts_esp0 = (uint32_t)&stack0 + sizeof(stack0);
+	// ??
     ts.ts_ss0 = KERNEL_DS;
-
+	// 
     // initialize the TSS filed of the gdt
     gdt[SEG_TSS] = SEG16(STS_T32A, (uint32_t)&ts, sizeof(ts), DPL_KERNEL);
     gdt[SEG_TSS].sd_s = 0;

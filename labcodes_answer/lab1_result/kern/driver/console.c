@@ -105,6 +105,7 @@ serial_init(void) {
     (void) inb(COM1+COM_RX);
 
     if (serial_exists) {
+		// IRQ_COM1 defined in trap.h
         pic_enable(IRQ_COM1);
     }
 }

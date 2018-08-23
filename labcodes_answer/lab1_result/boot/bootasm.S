@@ -17,6 +17,8 @@ start:
     cld                                             # String operations increment
 
     # Set up the important data segment registers (DS, ES, SS).
+	# this xorw can set %ax to zero regardless of what the initial value in this %ax is
+	# 使用 AT&T 样式的语法，所以其中的源和目的操作数和 Intel 文档中给出的顺序是相反的。
     xorw %ax, %ax                                   # Segment number zero
     movw %ax, %ds                                   # -> Data Segment
     movw %ax, %es                                   # -> Extra Segment
@@ -27,8 +29,11 @@ start:
     #  address line 20 is tied low, so that addresses higher than
     #  1MB wrap around to zero by default. This code undoes this.
 seta20.1:
+	# 64 -> status reg , bit 1 is set when input reg has data 
     inb $0x64, %al                                  # Wait for not busy(8042 input buffer empty).
+	# testb $0x2 AND %al , affected ZF 
     testb $0x2, %al
+	# jnz jump when ZF = 0,namely the result is not zero
     jnz seta20.1
 
     movb $0xd1, %al                                 # 0xd1 -> port 0x64
@@ -38,7 +43,7 @@ seta20.2:
     inb $0x64, %al                                  # Wait for not busy(8042 input buffer empty).
     testb $0x2, %al
     jnz seta20.2
-
+	// why don't read output buffer to get the original Output port?
     movb $0xdf, %al                                 # 0xdf -> port 0x60
     outb %al, $0x60                                 # 0xdf = 11011111, means set P2's A20 bit(the 1 bit) to 1
 
@@ -53,6 +58,7 @@ seta20.2:
 
     # Jump to next instruction, but in 32-bit code segment.
     # Switches processor into 32-bit mode.
+	# ?? ljmp cannot find the grammar
     ljmp $PROT_MODE_CSEG, $protcseg
 
 .code32                                             # Assemble for 32-bit mode
@@ -68,14 +74,17 @@ protcseg:
     # Set up the stack pointer and call into C. The stack region is from 0--start(0x7c00)
     movl $0x0, %ebp
     movl $start, %esp
+	# where the start is set to be 0x700?? 
     call bootmain
 
     # If bootmain returns (it shouldn't), loop.
 spin:
     jmp spin
-
+# can be defined in the bottom?
 # Bootstrap GDT
-.p2align 2                                          # force 4 byte alignment
+.p2align 2       
+# force 4 byte alignment
+# code seg and data seg base is equal?
 gdt:
     SEG_NULLASM                                     # null seg
     SEG_ASM(STA_X|STA_R, 0x0, 0xffffffff)           # code seg for bootloader and kernel

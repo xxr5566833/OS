@@ -51,6 +51,7 @@ idt_init(void) {
     for (i = 0; i < sizeof(idt) / sizeof(struct gatedesc); i ++) {
         SETGATE(idt[i], 0, GD_KTEXT, __vectors[i], DPL_KERNEL);
     }
+    SETGATE(idt[T_SYSCALL], 1, GD_KTEXT, __vectors[T_SYSCALL], DPL_USER);
 	// set for switch from user to kernel
     SETGATE(idt[T_SWITCH_TOK], 0, GD_KTEXT, __vectors[T_SWITCH_TOK], DPL_USER);
 	// load the IDT
@@ -178,7 +179,7 @@ trap_dispatch(struct trapframe *tf) {
             switchk2u = *tf;
             switchk2u.tf_cs = USER_CS;
             switchk2u.tf_ds = switchk2u.tf_es = switchk2u.tf_ss = USER_DS;
-            switchk2u.tf_esp = (uint32_t)tf + sizeof(struct trapframe) - 8;
+
 		
             // set eflags, make sure ucore can use io under user mode.
             // if CPL > IOPL, then cpu will generate a general protection.
@@ -186,6 +187,7 @@ trap_dispatch(struct trapframe *tf) {
 		
             // set temporary stack
             // then iret will jump to the right stack
+            // 终于懂了，热泪盈眶！
             *((uint32_t *)tf - 1) = (uint32_t)&switchk2u;
         }
         break;

@@ -24,6 +24,7 @@ pic_setmask(uint16_t mask) {
 
 void
 pic_enable(unsigned int irq) {
+
     pic_setmask(irq_mask & ~(1 << irq));
 }
 

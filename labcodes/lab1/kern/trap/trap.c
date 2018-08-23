@@ -46,6 +46,21 @@ idt_init(void) {
       *     You don't know the meaning of this instruction? just google it! and check the libs/x86.h to know more.
       *     Notice: the argument of lidt is idt_pd. try to find it!
       */
+	// remember: 0 -> global! 1->ldt,so the sel is GD_KTEXT
+	// vectors store the address of every gate`s code begin address,so don't use unwanted &
+	// why istrap is 0?
+		extern uintptr_t __vectors[];
+		int i = 0;
+		for(i = 0 ; i < 256 ; i ++){
+			uint32_t istrap = (i <= 19 || i == 0x80) ? 1 : 0;
+			uint32_t off = __vectors[i];
+			uint32_t dpl = 0;
+			// or use DPL_KERNEL
+			SETGATE(idt[i], istrap, GD_KTEXT, off, dpl);
+		}
+		// set for switch from user to kernel, I cannot understand
+		SETGATE(idt[T_SWITCH_TOK], 0, GD_KTEXT, __vectors[T_SWITCH_TOK], DPL_USER);
+		lidt(&idt_pd);
 }
 
 static const char *
@@ -133,7 +148,7 @@ print_regs(struct pushregs *regs) {
     cprintf("  ecx  0x%08x\n", regs->reg_ecx);
     cprintf("  eax  0x%08x\n", regs->reg_eax);
 }
-
+struct trapframe switchk2u, *switchu2k;
 /* trap_dispatch - dispatch based on what type of trap occurred */
 static void
 trap_dispatch(struct trapframe *tf) {
@@ -147,6 +162,10 @@ trap_dispatch(struct trapframe *tf) {
          * (2) Every TICK_NUM cycle, you can print some info using a funciton, such as print_ticks().
          * (3) Too Simple? Yes, I think so!
          */
+    	ticks++;
+    	if(ticks % TICK_NUM == 0){
+    		print_ticks();
+    	}
         break;
     case IRQ_OFFSET + IRQ_COM1:
         c = cons_getc();
@@ -158,8 +177,37 @@ trap_dispatch(struct trapframe *tf) {
         break;
     //LAB1 CHALLENGE 1 : YOUR CODE you should modify below codes.
     case T_SWITCH_TOU:
+    	if(tf->tf_cs != USER_CS){
+    		// 首先保证之前的CS段寄存器不是USER——CS，不能从用户态返回用户态
+    		switchk2u = *tf;
+    		switchk2u.tf_cs = USER_CS;
+    		switchk2u.tf_ds = switchk2u.tf_es = switchk2u.tf_ss = USER_DS;
+
+    		switchk2u.tf_esp = tf->tf_esp;
+    		switchk2u.tf_esp = (uint32_t)tf + sizeof(struct trapframe) - 8;
+    		// set eflags, make sure ucore can use io under user mode.
+    		// if CPL > IOPL, then cpu will generate a general protection.
+    		switchk2u.tf_eflags |= FL_IOPL_MASK;
+            // set temporary stack
+            // then iret will jump to the right stack
+    		// 这里((uint32_t *)tf - 1)指向参数，也就是后来灰复现场要用到的trapframe的起始位置
+    		// 现在这个变成由switchk2u来指示了，原来这个位置是当时的esp指针，表示参数的位置即tf的值
+    		// 指向的是它的+4位置处开始的trapframe，终于懂了。。为什么不能在tf上直接修改了？
+            *((uint32_t *)tf - 1) = (uint32_t)&switchk2u;
+    	}
     case T_SWITCH_TOK:
-        panic("T_SWITCH_** ??\n");
+    	if (tf->tf_cs != KERNEL_CS) {
+    		// 和上面一样，先设置tf_cs
+    		// 然后是ds es ss？
+    	            tf->tf_cs = KERNEL_CS;
+    	            tf->tf_ds = tf->tf_es = KERNEL_DS;
+    	            // 这里还是不太懂
+    	            tf->tf_eflags &= ~FL_IOPL_MASK;
+    	            // 为什么不直接tf?
+    	            switchu2k = (struct trapframe *)(tf->tf_esp - (sizeof(struct trapframe) - 8));
+    	            memmove(switchu2k, tf, sizeof(struct trapframe) - 8);
+    	            *((uint32_t *)tf - 1) = (uint32_t)switchu2k;
+    	        }
         break;
     case IRQ_OFFSET + IRQ_IDE1:
     case IRQ_OFFSET + IRQ_IDE2:

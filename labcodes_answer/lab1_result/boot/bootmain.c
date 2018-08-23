@@ -30,7 +30,7 @@
  *  * bootmain() in this file takes over, reads in the kernel and jumps to it.
  * */
 unsigned int    SECTSIZE  =      512 ;
-struct elfhdr * ELFHDR    =      ((struct elfhdr *)0x10000) ;     // scratch space
+struct elfhdr * ELFHDR    =      ((struct elfhdr *)0x10000) ;     // scratch space ??
 
 /* waitdisk - wait for disk ready */
 static void
@@ -44,11 +44,13 @@ static void
 readsect(void *dst, uint32_t secno) {
     // wait for disk to be ready
     waitdisk();
-
+	// 0x1F2 the number you want to read
     outb(0x1F2, 1);                         // count = 1
+	// LBA mode 3-5 LBA para 0-23 , 6 0-3 24-27   4 0 main 1 follow
     outb(0x1F3, secno & 0xFF);
     outb(0x1F4, (secno >> 8) & 0xFF);
     outb(0x1F5, (secno >> 16) & 0xFF);
+	// 0 main
     outb(0x1F6, ((secno >> 24) & 0xF) | 0xE0);
     outb(0x1F7, 0x20);                      // cmd 0x20 - read sectors
 
@@ -56,6 +58,8 @@ readsect(void *dst, uint32_t secno) {
     waitdisk();
 
     // read a sector
+	// once 32 bit->4byte so should /4
+	// 0x1f0 read data
     insl(0x1F0, dst, SECTSIZE / 4);
 }
 
@@ -95,9 +99,11 @@ bootmain(void) {
     struct proghdr *ph, *eph;
 
     // load each program segment (ignores ph flags)
+	// e_phoff program header offset
     ph = (struct proghdr *)((uintptr_t)ELFHDR + ELFHDR->e_phoff);
     eph = ph + ELFHDR->e_phnum;
     for (; ph < eph; ph ++) {
+		// / 段的第一个字节将被放到内存中的虚拟地址
         readseg(ph->p_va & 0xFFFFFF, ph->p_memsz, ph->p_offset);
     }
 

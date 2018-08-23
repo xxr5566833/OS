@@ -25,6 +25,7 @@ static inline void outw(uint16_t port, uint16_t data) __attribute__((always_inli
 static inline uint32_t read_ebp(void) __attribute__((always_inline));
 
 /* Pseudo-descriptors used for LGDT, LLDT(not used) and LIDT instructions. */
+// GDTR
 struct pseudodesc {
     uint16_t pd_lim;        // Limit
     uint32_t pd_base;        // Base address
@@ -45,10 +46,17 @@ inb(uint16_t port) {
 static inline void
 insl(uint32_t port, void *addr, int cnt) {
     asm volatile (
+		// clear direction , address increase
             "cld;"
+			// repne not equal,then repeat
+			// insl - 32 bit
+			// so strange, in handbook , insl should be insd
             "repne; insl;"
             : "=D" (addr), "=c" (cnt)
+			// "0" here specifies the same constraint as the 0th output variable
             : "d" (port), "0" (addr), "1" (cnt)
+			// If our instruction can alter the eflags register(? why can influence eflags), we have to add "cc" to the list of clobbered registers. 
+			// If our instruction modifies memory in an unpredictable fashion, add "memory" to the list of clobbered registers
             : "memory", "cc");
 }
 
