@@ -17,7 +17,6 @@ kern_entry:
     ljmp $KERNEL_CS, $relocated
 
 relocated:
-
     # set ebp, esp
     movl $0x0, %ebp
     # the kernel stack region is from bootstack -- bootstacktop,

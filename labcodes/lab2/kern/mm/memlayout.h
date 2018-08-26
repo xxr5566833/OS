@@ -51,8 +51,11 @@
  *     there if desired.
  *
  * */
+// TODO:what is "never mapped"?
 
 /* All physical memory mapped at this address */
+// TODO: why map? how to map
+// entry.S by segment mechanism
 #define KERNBASE            0xC0000000
 #define KMEMSIZE            0x38000000                  // the maximum amount of physical memory
 #define KERNTOP             (KERNBASE + KMEMSIZE)

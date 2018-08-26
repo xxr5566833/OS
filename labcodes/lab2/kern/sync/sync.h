@@ -7,7 +7,9 @@
 
 static inline bool
 __intr_save(void) {
+	// 如果当前中断开启，那么关闭中断并返回1,如果中断关闭，那么直接返回0
     if (read_eflags() & FL_IF) {
+    	// 发现中断开关是开启状态，那么就cli
         intr_disable();
         return 1;
     }
