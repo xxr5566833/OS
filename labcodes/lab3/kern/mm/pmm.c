@@ -330,7 +330,8 @@ pmm_init(void) {
     boot_map_segment(boot_pgdir, KERNBASE, KMEMSIZE, 0, PTE_W);
 
     //temporary map: 
-    //virtual_addr 3G~3G+4M = linear_addr 0~4M = linear_addr 3G~3G+4M = phy_addr 0~4M     
+    //virtual_addr 3G~3G+4M = linear_addr 0~4M = linear_addr 3G~3G+4M = phy_addr 0~4M
+    // TODO:这样做有什么用意了？enable之后又会取消这部分映射，没起作用？
     boot_pgdir[0] = boot_pgdir[PDX(KERNBASE)];
 
     enable_paging();
@@ -381,6 +382,34 @@ get_pte(pde_t *pgdir, uintptr_t la, bool create) {
      *   PTE_W           0x002                   // page table/directory entry flags bit : Writeable
      *   PTE_U           0x004                   // page table/directory entry flags bit : User can access
      */
+	pde_t* pde_p = &pgdir[PDX(la)];
+	if(!(*pde_p && PTE_P)){
+		// 如果对应的页目录項不存在
+		if(create){
+			struct Page *new_page = alloc_page();
+			if(new_page == NULL){
+				// 表示无页可分配，那么直接返回NULL
+				return NULL;
+			}
+			// 这里只分配一个，所以只需要把着一个page的ref增加
+			set_page_ref(new_page,1);
+			// TODO 页目录的想的标志位怎么设置
+			// 三个都要设置？
+			*pde_p = page2pa(new_page) | PTE_P | PTE_W | PTE_U;
+			// 把新分配的这一个物理页清0,便于之后设置页表現
+			memset(page2kva(new_page), 0, PGSIZE);
+		}
+		else{
+			// 页目录想不存在，又不让创建，只能设置为NULL
+			return NULL;
+		}
+	}
+	// 先通过pdep ，得到对应页表的起始虚地址，然后这个起始虚地址 + 偏移就是最后的地址
+	pte_t *pte_entry = (pte_t *)KADDR(PDE_ADDR(*pde_p)) + PTX(la);
+	// 这里似乎不需要分配相应的数据页了
+	return pte_entry;
+
+
 #if 0
     pde_t *pdep = NULL;   // (1) find page directory entry
     if (0) {              // (2) check if entry is not present
@@ -429,6 +458,15 @@ page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
      * DEFINEs:
      *   PTE_P           0x001                   // page table/directory entry flags bit : Present
      */
+	if(ptep && (*ptep & PTE_P)){
+		struct Page *page = pte2page(*ptep);
+		page_ref_dec(page);
+		if(page_ref(page) == 0){
+			free_page(page);
+		}
+		*ptep = 0;
+		tlb_invalidate(pgdir, la);
+	}
 #if 0
     if (0) {                      //(1) check if this page table entry is present
         struct Page *page = NULL; //(2) find corresponding page to pte
@@ -663,6 +701,7 @@ print_pgdir(void) {
 
 void *
 kmalloc(size_t n) {
+	// TODO: 不经过页表映射？
     void * ptr=NULL;
     struct Page *base=NULL;
     assert(n > 0 && n < 1024*0124);
