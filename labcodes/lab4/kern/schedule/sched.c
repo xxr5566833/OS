@@ -17,6 +17,7 @@ schedule(void) {
     struct proc_struct *next = NULL;
     local_intr_save(intr_flag);
     {
+    	// idle proc 这个什么时候重新设置为1?如果不设置为1,那么一直空while，下一个进程把它设置为1?
         current->need_resched = 0;
         last = (current == idleproc) ? &proc_list : &(current->list_link);
         le = last;

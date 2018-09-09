@@ -3,6 +3,7 @@
 switch_to:                      # switch_to(from, to)
 
     # save from's registers
+    # why esp point to return address?
     movl 4(%esp), %eax          # eax points to from
     popl 0(%eax)                # save eip !popl
     movl %esp, 4(%eax)

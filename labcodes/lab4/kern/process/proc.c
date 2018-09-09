@@ -102,6 +102,27 @@ alloc_proc(void) {
      *       uint32_t flags;                             // Process flag
      *       char name[PROC_NAME_LEN + 1];               // Process name
      */
+    	// 上面的图得到
+    	proc->state = PROC_UNINIT;
+    	// 等待初始化
+    	proc->pid = -1;
+    	proc->runs = 0;
+    	// 我jue de 是先初始化为0 等待之后对其进行初始化
+    	proc->kstack = 0;
+    	// 这里还不太理解？
+    	proc->need_resched = 0;
+    	// 还不知道其parent
+    	proc->parent = 0;
+    	// 目前对于内核线程这个0即可
+    	proc->mm = 0;
+    	// 这个现在也没法赋值啊
+    	memset(&(proc->context), 0, sizeof(struct context));
+    	proc->tf = 0;
+// 这里直接設boot_cr3
+    	proc->cr3 = boot_cr3;
+    	proc->flags = 0;
+    	memset(proc->name, 0, PROC_NAME_LEN);
+
     }
     return proc;
 }
@@ -166,6 +187,7 @@ proc_run(struct proc_struct *proc) {
         local_intr_save(intr_flag);
         {
             current = proc;
+            // kstack是zhan的最低指针
             load_esp0(next->kstack + KSTACKSIZE);
             lcr3(next->cr3);
             switch_to(&(prev->context), &(next->context));
@@ -248,12 +270,15 @@ copy_mm(uint32_t clone_flags, struct proc_struct *proc) {
 //             - setup the kernel entry point and stack of process
 static void
 copy_thread(struct proc_struct *proc, uintptr_t esp, struct trapframe *tf) {
+	// 在zhan的最高地址空间上设置一个tf
     proc->tf = (struct trapframe *)(proc->kstack + KSTACKSIZE) - 1;
     *(proc->tf) = *tf;
+    // TODO: reg_eax?
     proc->tf->tf_regs.reg_eax = 0;
     proc->tf->tf_esp = esp;
+    // 此内核线程在执行过程中能响应中断
     proc->tf->tf_eflags |= FL_IF;
-
+    // TODO： forket?
     proc->context.eip = (uintptr_t)forkret;
     proc->context.esp = (uintptr_t)(proc->tf);
 }
@@ -288,7 +313,29 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
      *   proc_list:    the process set's list
      *   nr_process:   the number of process set
      */
+    if((proc = alloc_proc()) == NULL){
+    	goto fork_out;
+    }
+// TODO: 注意parent的设置
+	proc->parent = current;
+    // kstack主要由setup_kstack来设置
+    if(setup_kstack(proc) != 0)
+    	goto bad_fork_cleanup_proc;
+    if(copy_mm(clone_flags, proc) != 0)
+    	goto bad_fork_cleanup_kstack;
+    // TODO: esp?
+    copy_thread(proc, stack, tf);
 
+	bool intr_flag;
+local_intr_save(intr_flag);
+{
+list_add(&(proc_list), &(proc->list_link));
+    hash_proc(proc);
+    nr_process++;
+    ret = (proc->pid = get_pid());
+}
+local_intr_restore(intr_flag);
+    wakeup_proc(proc);
     //    1. call alloc_proc to allocate a proc_struct
     //    2. call setup_kstack to allocate a kernel stack for child process
     //    3. call copy_mm to dup OR share mm according clone_flag
@@ -329,7 +376,7 @@ init_main(void *arg) {
 void
 proc_init(void) {
     int i;
-
+    // 初始化进程链表
     list_init(&proc_list);
     for (i = 0; i < HASH_LIST_SIZE; i ++) {
         list_init(hash_list + i);

@@ -214,7 +214,7 @@ endif
 # files for grade script
 
 TARGETS: $(TARGETS)
-
+all: $(TARGETS)
 .DEFAULT_GOAL := TARGETS
 
 QEMUOPTS = -hda $(UCOREIMG) -drive file=$(SWAPIMG),media=disk,cache=writeback
@@ -239,7 +239,8 @@ debug-nox: $(UCOREIMG) $(SWAPIMG)
 	$(V)$(QEMU) -S -s -serial mon:stdio $(QEMUOPTS) -nographic &
 	$(V)sleep 2
 	$(V)$(TERMINAL) -e "$(GDB) -q -x tools/gdbinit"
-
+gdb: $(UCOREIMG)
+	$(V)$(QEMU) -S -s -parallel stdio -hda $< -serial null
 .PHONY: grade touch
 
 GRADE_GDB_IN	:= .gdb.in
