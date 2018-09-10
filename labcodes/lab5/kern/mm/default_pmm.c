@@ -77,7 +77,8 @@ default_init_memmap(struct Page *base, size_t n) {
     base->property = n;
     SetPageProperty(base);
     nr_free += n;
-    list_add(&free_list, &(base->page_link));
+    // 所以只有每一块空闲内存的头指针才会被加入free_list中咯
+    list_add_before(&free_list, &(base->page_link));
 }
 
 static struct Page *
@@ -96,14 +97,18 @@ default_alloc_pages(size_t n) {
         }
     }
     if (page != NULL) {
+    	if (page->property > n) {
+    	    struct Page *p = page + n;
+    	    p->property = page->property - n;
+    	    SetPageProperty(p);
+    	    list_add(&(page->page_link), &(p->page_link));
+    	}
+    	// 对于已分配页的property，任何值都可以，因为property会在free时按照当时free的个数被重新设置
         list_del(&(page->page_link));
-        if (page->property > n) {
-            struct Page *p = page + n;
-            p->property = page->property - n;
-            list_add(&free_list, &(p->page_link));
-    }
+
         nr_free -= n;
         ClearPageProperty(page);
+
     }
     return page;
 }
@@ -119,24 +124,65 @@ default_free_pages(struct Page *base, size_t n) {
     }
     base->property = n;
     SetPageProperty(base);
-    list_entry_t *le = list_next(&free_list);
-    while (le != &free_list) {
-        p = le2page(le, page_link);
-        le = list_next(le);
-        if (base + base->property == p) {
-            base->property += p->property;
-            ClearPageProperty(p);
-            list_del(&(p->page_link));
-        }
-        else if (p + p->property == base) {
-            p->property += base->property;
-            ClearPageProperty(base);
-            base = p;
-            list_del(&(p->page_link));
-        }
-    }
+    // 不管如何合并，nr_free增加n是一定的
     nr_free += n;
-    list_add(&free_list, &(base->page_link));
+    list_entry_t *le = list_next(&free_list);
+    // 这里需要判断，当free_list为空时，根本不会执行下面这个循环
+    if(list_empty(&free_list)){
+    	list_add_before(&(free_list), &(base->page_link));
+    }
+    else{
+    	// free_list 不为空时，此时需要先把base插入到合适的位置，最后再合并！
+    	int flag = 0;
+    	while (le != &free_list) {
+    		p = le2page(le, page_link);
+    		le = list_next(le);
+    		// 有序向量的插入
+    		if(p > base){
+    			flag = 1;
+    			list_add_before(&(p->page_link), &(base->page_link));
+    			break;
+    		}
+    	}
+    	if(!flag){
+    		// 说明base是最大的
+    		list_add_before(&(free_list), &(base->page_link));
+    	}
+    }
+    // 接下来进行合并
+    // 先看能不能和前面合并
+    list_entry_t * prev = list_prev(&(base->page_link));
+    if(prev != &(free_list)){
+    	struct Page *prev_page = le2page(prev, page_link);
+    	if(prev_page->property + prev_page == base){
+    		// 可以与前面的合并
+    		prev_page->property += base->property;
+    		ClearPageProperty(base);
+    		list_del(&(base->page_link));
+    		base = prev_page;
+    		// base 继续参与和后者的合并
+    	}
+    }
+    list_entry_t *next = list_next(&(base->page_link));
+    if(next != &(free_list)){
+    	struct Page *next_page = le2page(next, page_link);
+    	if(base->property + base == next_page){
+    		// 可以后面合并
+    		base->property += next_page->property;
+    		ClearPageProperty(next_page);
+    		list_del(&(next_page->page_link));
+    	}
+    }
+    // 遍历，输出当前free_list
+    /*list_entry_t * first = free_list.next;
+    while(first != &(free_list)){
+    	struct Page *page = le2page(first, page_link);
+    	cprintf("物理页号为: %d , 物理地址为 0x%08x, property为 %d, Page的地址为 0x%08x,Page+property的地址为 0x%0x8\n",
+    			page2ppn(page), page2pa(page), page->property, page, page+page->property);
+    	first = first->next;
+    }
+    cprintf("free_list 信息打印完毕\n");*/
+
 }
 
 static size_t

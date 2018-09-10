@@ -103,6 +103,29 @@ alloc_proc(void) {
      *       uint32_t flags;                             // Process flag
      *       char name[PROC_NAME_LEN + 1];               // Process name
      */
+	// 上面的图得到
+    	proc->state = PROC_UNINIT;
+    	// 等待初始化
+    	proc->pid = -1;
+    	proc->runs = 0;
+    	// 我jue de 是先初始化为0 等待之后对其进行初始化
+    	proc->kstack = 0;
+    	// 这里还不太理解？
+    	proc->need_resched = 0;
+    	// 还不知道其parent
+    	proc->parent = 0;
+    	// 目前对于内核线程这个0即可
+    	proc->mm = 0;
+    	// 这个现在也没法赋值啊
+    	memset(&(proc->context), 0, sizeof(struct context));
+    	proc->tf = 0;
+// 这里直接設boot_cr3
+    	proc->cr3 = boot_cr3;
+    	proc->flags = 0;
+    	memset(proc->name, 0, PROC_NAME_LEN);
+    	// 猜测
+    	proc->wait_state = 0;
+    	proc->yptr = proc->cptr = proc->optr = NULL;
      //LAB5 YOUR CODE : (update LAB4 steps)
     /*
      * below fields(add in LAB5) in proc_struct need to be initialized	
@@ -387,7 +410,28 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
      *   proc_list:    the process set's list
      *   nr_process:   the number of process set
      */
+    if((proc = alloc_proc()) == NULL){
+    	goto fork_out;
+    }
+// TODO: 注意parent的设置
+	proc->parent = current;
+    // kstack主要由setup_kstack来设置
+    if(setup_kstack(proc) != 0)
+    	goto bad_fork_cleanup_proc;
+    if(copy_mm(clone_flags, proc) != 0)
+    	goto bad_fork_cleanup_kstack;
+    // TODO: esp?
+    copy_thread(proc, stack, tf);
 
+	bool intr_flag;
+local_intr_save(intr_flag);
+{
+    hash_proc(proc);
+    ret = (proc->pid = get_pid());
+    set_links(proc);
+}
+local_intr_restore(intr_flag);
+    wakeup_proc(proc);
     //    1. call alloc_proc to allocate a proc_struct
     //    2. call setup_kstack to allocate a kernel stack for child process
     //    3. call copy_mm to dup OR share mm according clone_flag
@@ -602,6 +646,11 @@ load_icode(unsigned char *binary, size_t size) {
      *          tf_eip should be the entry point of this binary program (elf->e_entry)
      *          tf_eflags should be set to enable computer to produce Interrupt
      */
+    tf->tf_cs = USER_CS;
+    tf->tf_ds = tf->tf_es = tf->tf_ss = USER_DS;
+    tf->tf_esp = USTACKTOP;
+    tf->tf_eip = elf->e_entry;
+    tf->tf_eflags |= FL_IF;
     ret = 0;
 out:
     return ret;
