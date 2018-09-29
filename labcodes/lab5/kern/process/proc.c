@@ -324,7 +324,7 @@ put_pgdir(struct mm_struct *mm) {
 static int
 copy_mm(uint32_t clone_flags, struct proc_struct *proc) {
     struct mm_struct *mm, *oldmm = current->mm;
-
+    cprintf("oldmm is %x \n", oldmm);
     /* current is a kernel thread */
     if (oldmm == NULL) {
         return 0;
@@ -415,6 +415,7 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
     }
 // TODO: 注意parent的设置
 	proc->parent = current;
+
     // kstack主要由setup_kstack来设置
     if(setup_kstack(proc) != 0)
     	goto bad_fork_cleanup_proc;
@@ -531,6 +532,7 @@ load_icode(unsigned char *binary, size_t size) {
     if ((mm = mm_create()) == NULL) {
         goto bad_mm;
     }
+
     //(2) create a new PDT, and mm->pgdir= kernel virtual addr of PDT
     if (setup_pgdir(mm) != 0) {
         goto bad_pgdir_cleanup_mm;
@@ -679,7 +681,7 @@ do_execve(const char *name, size_t len, unsigned char *binary, size_t size) {
     char local_name[PROC_NAME_LEN + 1];
     memset(local_name, 0, sizeof(local_name));
     memcpy(local_name, name, len);
-
+    // todo: 不理解
     if (mm != NULL) {
         lcr3(boot_cr3);
         if (mm_count_dec(mm) == 0) {
@@ -879,17 +881,18 @@ proc_init(void) {
     nr_process ++;
 
     current = idleproc;
-
     int pid = kernel_thread(init_main, NULL, 0);
+
     if (pid <= 0) {
         panic("create init_main failed.\n");
     }
-
     initproc = find_proc(pid);
+
     set_proc_name(initproc, "init");
 
     assert(idleproc != NULL && idleproc->pid == 0);
     assert(initproc != NULL && initproc->pid == 1);
+
 }
 
 // cpu_idle - at the end of kern_init, the first kernel thread idleproc will do below works
