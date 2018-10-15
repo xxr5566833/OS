@@ -428,7 +428,7 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
 	// TODO： 为什么吧 r = (proc->pid = get_pid() 放进大括号你就部队了？)
 local_intr_save(intr_flag);
     {
-        cprintf("%d \n", proc->pid = get_pid());
+        proc->pid = get_pid();
         hash_proc(proc);
         set_links(proc);
 
@@ -436,7 +436,7 @@ local_intr_save(intr_flag);
 local_intr_restore(intr_flag);
     wakeup_proc(proc);
 ret = proc->pid;
-cprintf("%d \n", ret);
+
     //    1. call alloc_proc to allocate a proc_struct
     //    2. call setup_kstack to allocate a kernel stack for child process
     //    3. call copy_mm to dup OR share mm according clone_flag

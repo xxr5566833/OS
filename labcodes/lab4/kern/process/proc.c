@@ -327,15 +327,18 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
     copy_thread(proc, stack, tf);
 
 	bool intr_flag;
-local_intr_save(intr_flag);
-{
-list_add(&(proc_list), &(proc->list_link));
-    hash_proc(proc);
-    nr_process++;
-    ret = (proc->pid = get_pid());
-}
-local_intr_restore(intr_flag);
+    local_intr_save(intr_flag);
+    {
+        proc->pid = get_pid();
+        hash_proc(proc);
+        list_add(&proc_list, &(proc->list_link));
+        nr_process ++;
+    }
+    local_intr_restore(intr_flag);
+
     wakeup_proc(proc);
+
+    ret = proc->pid;
     //    1. call alloc_proc to allocate a proc_struct
     //    2. call setup_kstack to allocate a kernel stack for child process
     //    3. call copy_mm to dup OR share mm according clone_flag
