@@ -83,6 +83,13 @@ syscall(void) {
     struct trapframe *tf = current->tf;
     uint32_t arg[5];
     int num = tf->tf_regs.reg_eax;
+	/*if(num == SYS_exec)
+	{
+		cprintf("tf:0x%08x  kstack + size :0x%08x \n", current->tf, current->kstack + 2 * 4096);
+		cprintf("print trap frames!");
+		print_trapframe(tf);
+		panic("stop!");
+	}*/
     if (num >= 0 && num < NUM_SYSCALLS) {
         if (syscalls[num] != NULL) {
             arg[0] = tf->tf_regs.reg_edx;

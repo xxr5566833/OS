@@ -331,7 +331,7 @@ pmm_init(void) {
 
     //temporary map: 
     //virtual_addr 3G~3G+4M = linear_addr 0~4M = linear_addr 3G~3G+4M = phy_addr 0~4M
-    // TODO:这样做有什么用意了？enable之后又会取消这部分映射，没起作用？
+ 
     boot_pgdir[0] = boot_pgdir[PDX(KERNBASE)];
 
     enable_paging();

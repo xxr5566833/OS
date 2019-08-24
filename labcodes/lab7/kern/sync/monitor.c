@@ -28,6 +28,7 @@ cond_signal (condvar_t *cvp) {
    //LAB7 EXERCISE1: YOUR CODE
    cprintf("cond_signal begin: cvp %x, cvp->count %d, cvp->owner->next_count %d\n", cvp, cvp->count, cvp->owner->next_count);  
    if(cvp->count > 0){
+
 		cvp->owner->next_count ++;
 		up(&(cvp->sem));
 		down(&(cvp->owner->next));

@@ -237,6 +237,7 @@ proc_run(struct proc_struct *proc) {
 //       after switch_to, the current proc will execute here.
 static void
 forkret(void) {
+	//cprintf("tf:0x%08x  kstack + size :0x%08x  size of(tf) : %d == %d\n", current->tf, current->kstack + 2 * 4096, sizeof(struct trapframe), (uint32_t)(current->kstack) + 2 * 4096 - (uint32_t)current->tf);
     forkrets(current->tf);
 }
 
@@ -371,6 +372,7 @@ bad_mm:
 static void
 copy_thread(struct proc_struct *proc, uintptr_t esp, struct trapframe *tf) {
     proc->tf = (struct trapframe *)(proc->kstack + KSTACKSIZE) - 1;
+	// cprintf("tf:0x%08x  kstack + size :0x%08x  size of(tf) : %d == %d\n", proc->tf, proc->kstack + 2 * 4096, sizeof(struct trapframe), (uint32_t)(proc->kstack) + 2 * 4096 - (uint32_t)proc->tf);
     *(proc->tf) = *tf;
     proc->tf->tf_regs.reg_eax = 0;
     proc->tf->tf_esp = esp;
@@ -685,7 +687,7 @@ do_execve(const char *name, size_t len, unsigned char *binary, size_t size) {
     char local_name[PROC_NAME_LEN + 1];
     memset(local_name, 0, sizeof(local_name));
     memcpy(local_name, name, len);
-    // todo: 不理解
+
     if (mm != NULL) {
         lcr3(boot_cr3);
         if (mm_count_dec(mm) == 0) {
@@ -798,6 +800,8 @@ do_kill(int pid) {
 static int
 kernel_execve(const char *name, unsigned char *binary, size_t size) {
     int ret, len = strlen(name);
+	// cprintf("tf:0x%08x  kstack + size :0x%08x  size of(tf) : %d == %d\n", current->tf, current->kstack + 2 * 4096, sizeof(struct trapframe), (uint32_t)(current->kstack) + 2 * 4096 - (uint32_t)current->tf);
+
     asm volatile (
         "int %1;"
         : "=a" (ret)
@@ -829,6 +833,9 @@ kernel_execve(const char *name, unsigned char *binary, size_t size) {
 // user_main - kernel thread used to exec a user program
 static int
 user_main(void *arg) {
+	//cprintf("I am user_main ! \n");
+	//cprintf("tf:0x%08x  kstack + size :0x%08x  size of(tf) : %d == %d\n", current->tf, current->kstack + 2 * 4096, sizeof(struct trapframe), (uint32_t)(current->kstack) + 2 * 4096 - (uint32_t)current->tf);
+
 #ifdef TEST
     KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
 #else

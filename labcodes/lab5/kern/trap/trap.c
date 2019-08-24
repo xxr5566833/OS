@@ -218,6 +218,8 @@ trap_dispatch(struct trapframe *tf) {
         }
         break;
     case T_SYSCALL:
+		//cprintf("tf:0x%08x  kstack + size :0x%08x  size of(tf) : %d == %d\n", current->tf, current->kstack + 2 * 4096, sizeof(struct trapframe), (uint32_t)(current->kstack) + 2 * 4096 - (uint32_t)current->tf);
+		//print_trapframe(tf);
         syscall();
         break;
     case IRQ_OFFSET + IRQ_TIMER:
@@ -233,7 +235,7 @@ trap_dispatch(struct trapframe *tf) {
          */
         ticks ++;
         if (ticks % TICK_NUM == 0) {
-            print_ticks();
+            // print_ticks();
             current->need_resched = 1;
         }
         /* LAB5 YOUR CODE */

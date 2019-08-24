@@ -384,6 +384,34 @@ get_pte(pde_t *pgdir, uintptr_t la, bool create) {
      *   PTE_W           0x002                   // page table/directory entry flags bit : Writeable
      *   PTE_U           0x004                   // page table/directory entry flags bit : User can access
      */
+	pde_t* pde_p = &pgdir[PDX(la)];
+	if(!(*pde_p && PTE_P)){
+		// 如果对应的页目录項不存在
+		if(create){
+			struct Page *new_page = alloc_page();
+			if(new_page == NULL){
+				// 表示无页可分配，那么直接返回NULL
+				return NULL;
+			}
+			// 这里只分配一个，所以只需要把着一个page的ref增加
+			set_page_ref(new_page,1);
+			// TODO 页目录的想的标志位怎么设置
+			// 三个都要设置？
+			*pde_p = page2pa(new_page) | PTE_P | PTE_W | PTE_U;
+			// 把新分配的这一个物理页清0,便于之后设置页表現
+			memset(page2kva(new_page), 0, PGSIZE);
+		}
+		else{
+			// 页目录想不存在，又不让创建，只能设置为NULL
+			return NULL;
+		}
+	}
+	// 先通过pdep ，得到对应页表的起始虚地址，然后这个起始虚地址 + 偏移就是最后的地址
+	pte_t *pte_entry = (pte_t *)KADDR(PDE_ADDR(*pde_p)) + PTX(la);
+	// 这里似乎不需要分配相应的数据页了
+	return pte_entry;
+
+
 #if 0
     pde_t *pdep = NULL;   // (1) find page directory entry
     if (0) {              // (2) check if entry is not present
@@ -432,6 +460,15 @@ page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
      * DEFINEs:
      *   PTE_P           0x001                   // page table/directory entry flags bit : Present
      */
+	if(ptep && (*ptep & PTE_P)){
+		struct Page *page = pte2page(*ptep);
+		page_ref_dec(page);
+		if(page_ref(page) == 0){
+			free_page(page);
+		}
+		*ptep = 0;
+		tlb_invalidate(pgdir, la);
+	}
 #if 0
     if (0) {                      //(1) check if this page table entry is present
         struct Page *page = NULL; //(2) find corresponding page to pte
@@ -500,29 +537,35 @@ copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end, bool share) {
             if ((nptep = get_pte(to, start, 1)) == NULL) {
                 return -E_NO_MEM;
             }
-        uint32_t perm = (*ptep & PTE_USER);
-        //get page from ptep
-        struct Page *page = pte2page(*ptep);
-        // alloc a page for process B
-        struct Page *npage=alloc_page();
-        assert(page!=NULL);
-        assert(npage!=NULL);
-        int ret=0;
-        /* LAB5:EXERCISE2 YOUR CODE
-         * replicate content of page to npage, build the map of phy addr of nage with the linear addr start
-         *
-         * Some Useful MACROs and DEFINEs, you can use them in below implementation.
-         * MACROs or Functions:
-         *    page2kva(struct Page *page): return the kernel vritual addr of memory which page managed (SEE pmm.h)
-         *    page_insert: build the map of phy addr of an Page with the linear addr la
-         *    memcpy: typical memory copy function
-         *
-         * (1) find src_kvaddr: the kernel virtual address of page
-         * (2) find dst_kvaddr: the kernel virtual address of npage
-         * (3) memory copy from src_kvaddr to dst_kvaddr, size is PGSIZE
-         * (4) build the map of phy addr of  nage with the linear addr start
-         */
-        assert(ret == 0);
+			uint32_t perm = (*ptep & PTE_USER);
+			//get page from ptep
+			struct Page *page = pte2page(*ptep);
+			// alloc a page for process B
+			struct Page *npage=alloc_page();
+			assert(page!=NULL);
+			assert(npage!=NULL);
+			int ret=0;
+			/* LAB5:EXERCISE2 YOUR CODE
+			 * replicate content of page to npage, build the map of phy addr of nage with the linear addr start
+			 *
+			 * Some Useful MACROs and DEFINEs, you can use them in below implementation.
+			 * MACROs or Functions:
+			 *    page2kva(struct Page *page): return the kernel vritual addr of memory which page managed (SEE pmm.h)
+			 *    page_insert: build the map of phy addr of an Page with the linear addr la
+			 *    memcpy: typical memory copy function
+			 *
+			 * (1) find src_kvaddr: the kernel virtual address of page
+			 * (2) find dst_kvaddr: the kernel virtual address of npage
+			 * (3) memory copy from src_kvaddr to dst_kvaddr, size is PGSIZE
+			 * (4) build the map of phy addr of  nage with the linear addr start
+			 */
+			void * kva_src = page2kva(page);
+			void * kva_dst = page2kva(npage);
+		
+			memcpy(kva_dst, kva_src, PGSIZE);
+
+			ret = page_insert(to, npage, start, perm);
+			assert(ret == 0);
         }
         start += PGSIZE;
     } while (start != 0 && start < end);

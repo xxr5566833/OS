@@ -177,7 +177,7 @@ void check_sync(void){
 
     int i;
 
-    //check semaphore
+    /*//check semaphore
     sem_init(&mutex, 1);
     for(i=0;i<N;i++){
         sem_init(&s[i], 0);
@@ -187,11 +187,11 @@ void check_sync(void){
         }
         philosopher_proc_sema[i] = find_proc(pid);
         set_proc_name(philosopher_proc_sema[i], "philosopher_sema_proc");
-    }
+    }*/
 
     //check condition variable
     monitor_init(&mt, N);
-    for(i=0;i<N;i++){
+    for(i=0;i<3;i++){
         state_condvar[i]=THINKING;
         int pid = kernel_thread(philosopher_using_condvar, (void *)i, 0);
         if (pid <= 0) {
